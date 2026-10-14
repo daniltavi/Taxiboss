@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Поехали — такси</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#161A23;--muted:#6B7280;--line:#E3E6EC;--bg:#F3F5F8;--sun:#FFC52E;--sun-soft:#FFF4CF;--ok:#1F9D63;--bad:#D64545}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+#map{position:absolute;inset:0}
+#maperr{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--muted);background:var(--bg);line-height:1.5}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:64%;overflow:auto;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -6px 30px rgba(22,26,35,.18);padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+@media (min-width:820px){.sheet{left:16px;right:auto;top:16px;bottom:auto;width:390px;max-height:calc(100% - 32px);border-radius:20px;padding-bottom:16px}}
+.fields{border:1.5px solid var(--line);border-radius:14px;overflow:hidden}
+.f{display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;background:#fff}
+.f+.f{border-top:1px solid var(--line)}
+.f.on{background:var(--sun-soft)}
+.dot{flex:none;width:12px;height:12px;border-radius:50%}
+.dot.a{background:var(--ink)}
+.dot.b{background:var(--sun);box-shadow:0 0 0 3px var(--ink)}
+.f input{flex:1;min-width:0;border:0;background:transparent;font:600 15px Manrope,system-ui,sans-serif;color:var(--ink);padding:14px 0;outline:0}
+.f input::placeholder{color:#9AA1AD;font-weight:500}
+.ic{flex:none;border:0;background:transparent;width:34px;height:34px;border-radius:10px;cursor:pointer;color:var(--ink);display:grid;place-items:center}
+.ic:hover,.ic:focus-visible{background:var(--bg);outline:2px solid var(--ink)}
+.hint{margin:14px 2px 2px;color:var(--muted);font-size:14px;line-height:1.5}
+.tariffs{display:grid;gap:8px;margin:14px 0 12px}
+.t{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;font:inherit;color:inherit;cursor:pointer}
+.t:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.t.sel{border-color:var(--ink);background:var(--sun-soft)}
+.t b{display:block;font-size:16px}
+.t small{color:var(--muted);font-size:13px}
+.t .p{font-weight:800;font-size:17px;white-space:nowrap}
+.go{width:100%;border:0;border-radius:14px;background:var(--sun);color:var(--ink);font:800 17px Manrope,system-ui,sans-serif;padding:16px;cursor:pointer}
+.go:hover{background:#F5B800}
+.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.go:disabled{opacity:.45;cursor:default}
+.go.sec{background:var(--bg)}
+.go.sec:hover{background:var(--line)}
+.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:12px 2px 0}
+.status{margin-top:14px}
+.status h2{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}
+.status p{margin:0;color:var(--muted);font-size:14px}
+.bar{height:6px;border-radius:3px;background:var(--line);margin:14px 0;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s linear}
+.bar.ind i{width:40%;animation:ind 1.1s ease-in-out infinite alternate}
+@keyframes ind{from{margin-left:0}to{margin-left:60%}}
+.drv{display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid var(--line);border-radius:14px;margin:12px 0}
+.av{flex:none;width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--sun);display:grid;place-items:center;font-weight:800}
+.plate{margin-left:auto;border:1.5px solid var(--ink);border-radius:6px;padding:3px 8px;font-weight:800;font-size:14px;white-space:nowrap}
+.done{color:var(--ok)}
+#toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;max-width:90%}
+#toast.show{opacity:1}
+.tabs{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:12px;margin-bottom:12px}
+.tabs button{flex:1;border:0;background:transparent;border-radius:9px;padding:9px 4px;font:700 14px Manrope,system-ui,sans-serif;color:var(--muted);cursor:pointer}
+.tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(22,26,35,.15)}
+.tabs button:focus-visible{outline:2px solid var(--ink)}
+.ord{border:1.5px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}
+.ord small,.h small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.ord .meta{margin:8px 0 0;align-items:center}
+.ord .meta b{font-size:17px;color:var(--ink)}
+.h{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.h .in{color:var(--ok)}
+.h>b{white-space:nowrap}
+.sum{display:flex;gap:10px;margin:12px 0 4px}
+.sum div{flex:1;background:var(--bg);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--muted)}
+.sum b{display:block;font-size:18px;color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.bar.ind i{animation:none}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="maperr">Карта не загрузилась.<br>Проверьте API-ключ в начале скрипта (константа API_KEY), его ограничение по домену и интернет-соединение.</div>
+
+<main class="sheet">
+  <nav class="tabs"><button data-m="rider" class="on">Поездка</button><button data-m="driver">Водитель</button><button data-m="hist">История</button></nav>
+  <div class="fields">
+    <label class="f on" data-k="from"><i class="dot a"></i>
+      <input id="from" placeholder="Откуда" autocomplete="off" enterkeyhint="search">
+      <button class="ic" id="locate" type="button" aria-label="Моё местоположение">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+    </label>
+    <label class="f" data-k="to"><i class="dot b"></i>
+      <input id="to" placeholder="Куда" autocomplete="off" enterkeyhint="search">
+    </label>
+  </div>
+  <div id="body"></div>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+// ---------- Настройки ----------
+// Ключи: https://developer.tech.yandex.ru/
+const API_KEY = '687fc78f-6737-48cd-90cf-5a1ae7f04717'; // JavaScript API (карта, маршруты)
+const GEO_KEY = '269f0017-fe54-483d-92d4-1a3a87de808a'; // HTTP Геокодер (поиск адреса и адрес по точке)
+const LOC_KEY = '45d6b638-3ed9-4f43-bca6-dc6b61117bcd'; // Локатор API (определение места, когда GPS недоступен)
+
+// Локатор API: публичный IP → { coords: [lat, lon], accuracy (м) } или null, если место не определено
+async function locate() {
+  const ip = (await (await fetch('https://api.ipify.org?format=json')).json()).ip;
+  const r = await fetch('https://locator.api.maps.yandex.ru/v1/locate?apikey=' + LOC_KEY, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: [{ address: ip }] })
+  });
+  if (!r.ok) throw new Error('locator ' + r.status);
+  const d = await r.json();
+  return d.location ? { coords: [d.location.point.lat, d.location.point.lon], accuracy: d.location.accuracy } : null;
+}
+
+// «Моё местоположение»: сначала GPS браузера, при отказе или ошибке — Локатор API
+function locateMe() {
+  const ok = c => { setPoint('from', c); map.setCenter(c, 15); };
+  const viaLocator = () => locate().then(l => {
+    if (!l) return toast('Не удалось определить местоположение. Выберите точку на карте');
+    ok(l.coords); toast('Определено по сети, точность около ' + Math.round(l.accuracy) + ' м');
+  }).catch(() => toast('Локатор недоступен. Выберите точку на карте'));
+  navigator.geolocation
+    ? navigator.geolocation.getCurrentPosition(p => ok([p.coords.latitude, p.coords.longitude]), viaLocator, { timeout: 8000 })
+    : viaLocator();
+}
+
+// Геокодер: строка → адрес и координаты, [lat, lon] → адрес. Возвращает { coords: [lat, lon], address } или null
+async function geocode(q, bounds) {
+  const rev = Array.isArray(q);
+  let url = 'https://geocode-maps.yandex.ru/v1/?format=json&lang=ru_RU&results=1&apikey=' + GEO_KEY +
+    '&geocode=' + encodeURIComponent(rev ? q[1] + ',' + q[0] : q);
+  if (bounds) url += '&bbox=' + bounds[0][1] + ',' + bounds[0][0] + '~' + bounds[1][1] + ',' + bounds[1][0];
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('geocoder ' + r.status);
+  const m = (await r.json()).response.GeoObjectCollection.featureMember[0];
+  if (!m) return null;
+  const [lon, lat] = m.GeoObject.Point.pos.split(' ').map(Number);
+  return { coords: [lat, lon], address: m.GeoObject.metaDataProperty.GeocoderMetaData.text };
+}
+const CENTER = [55.751574, 37.573856]; // Москва
+
+const TARIFFS = [
+  { id: 'econom',  name: 'Эконом',  base: 99,  km: 12, min: 5,  note: 'Kia Rio, Hyundai Solaris · 4 места' },
+  { id: 'comfort', name: 'Комфорт', base: 149, km: 16, min: 7,  note: 'Skoda Octavia, Kia K5 · 4 места' },
+  { id: 'business',name: 'Бизнес',  base: 249, km: 25, min: 11, note: 'Mercedes E-класс · 3 места' }
+];
+const DRIVERS = [
+  { n: 'Алексей', car: 'Kia Rio, белый', plate: 'А123ВС 77' },
+  { n: 'Марат', car: 'Hyundai Solaris, серый', plate: 'К507МО 77' },
+  { n: 'Ирина', car: 'Skoda Octavia, чёрная', plate: 'Т842РХ 97' }
+];
+
+// ---------- Состояние ----------
+const $ = s => document.querySelector(s);
+const st = { from: null, to: null, active: 'from', info: null, tariff: 'econom', phase: 'idle', drv: null, left: 0, mode: 'rider', oid: null };
+let map, marks = {}, routeObj, carMark, animToken = 0, timers = [];
+
+const price = t => Math.round((t.base + t.km * st.info.km + t.min * st.info.min) / 10) * 10;
+const curT = () => TARIFFS.find(t => t.id === st.tariff);
+const eta = () => Math.max(2, Math.round(st.info.min * 0.25) + 2); // подача, мин (демо)
+
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ---------- Загрузка Яндекс.Карт ----------
+const s = document.createElement('script');
+s.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(API_KEY)}&lang=ru_RU`;
+s.onload = () => ymaps.ready(init);
+s.onerror = () => { $('#maperr').style.display = 'flex'; };
+document.head.appendChild(s);
+
+function init() {
+  map = new ymaps.Map('map', { center: CENTER, zoom: 12, controls: ['zoomControl'] }, { suppressMapOpenBlock: true });
+  map.events.add('click', e => setPoint(st.active, e.get('coords')));
+  render();
+}
+
+// ---------- Точки и маршрут ----------
+function setPoint(kind, coords, address) {
+  if (st.phase !== 'idle' || !map || st.mode !== 'rider') return;
+  st[kind] = { coords, address: address || 'Определяем адрес…' };
+  if (marks[kind]) marks[kind].geometry.setCoordinates(coords);
+  else {
+    marks[kind] = new ymaps.Placemark(coords, {}, { preset: kind === 'from' ? 'islands#blackCircleDotIcon' : 'islands#yellowCircleDotIcon' });
+    map.geoObjects.add(marks[kind]);
+  }
+  if (!address) {
+    geocode(coords).then(g => {
+      st[kind].address = g ? g.address : 'Точка на карте';
+      render();
+    }).catch(() => { st[kind].address = 'Точка на карте'; render(); });
+  }
+  st.active = kind === 'from' && !st.to ? 'to' : st.active;
+  render();
+  buildRoute();
+}
+
+function geocodeText(kind, text) {
+  if (!text.trim() || !map) return;
+  geocode(text, map.getBounds()).then(g => {
+    if (!g) return toast('Адрес не найден');
+    setPoint(kind, g.coords, g.address);
+    if (!(st.from && st.to)) map.setCenter(g.coords, 15);
+  }).catch(() => toast('Не удалось найти адрес. Проверьте ключ HTTP Геокодера'));
+}
+
+function buildRoute() {
+  if (routeObj) { map.geoObjects.remove(routeObj); routeObj = null; }
+  st.info = null;
+  if (!(st.from && st.to)) return;
+  ymaps.route([st.from.coords, st.to.coords]).then(route => {
+    routeObj = route;
+    route.getPaths().options.set({ strokeColor: '#161A23', strokeWidth: 5, opacity: 0.9 });
+    route.getWayPoints().options.set('visible', false);
+    map.geoObjects.add(route);
+    st.info = { km: route.getLength() / 1000, min: route.getTime() / 60 };
+    map.setBounds(route.getBounds(), { checkZoomRange: true, zoomMargin: [70, 50, 70, 50] });
+    render();
+  }).catch(() => toast('Не удалось построить маршрут'));
+}
+
+function pathCoords(route) {
+  const out = [];
+  route.getPaths().each(p => p.getSegments().forEach(sg => out.push(...sg.getCoordinates())));
+  return out;
+}
+
+// ---------- Анимация машины ----------
+function animate(coords, ms, onP, onDone) {
+  const token = ++animToken;
+  const d = [0];
+  for (let i = 1; i < coords.length; i++)
+    d.push(d[i - 1] + Math.hypot(coords[i][0] - coords[i - 1][0], coords[i][1] - coords[i - 1][1]));
+  const total = d[d.length - 1] || 1;
+  let t0;
+  const frame = t => {
+    if (token !== animToken) return;
+    t0 = t0 || t;
+    const p = Math.min((t - t0) / ms, 1), target = p * total;
+    let i = 1; while (i < d.length - 1 && d[i] < target) i++;
+    const k = (target - d[i - 1]) / ((d[i] - d[i - 1]) || 1);
+    carMark.geometry.setCoordinates([
+      coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * k,
+      coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * k
+    ]);
+    onP(p);
+    p < 1 ? requestAnimationFrame(frame) : onDone();
+  };
+  requestAnimationFrame(frame);
+}
+
+// ---------- Заказ (симуляция) ----------
+function order() {
+  if (st.mode !== 'rider' || !st.info) return; // заказ создаёт только пассажир
+  const t = curT(); st.oid = Date.now().toString(36);
+  st.ord = { id: st.oid, ts: Date.now(), from: st.from, to: st.to, tariff: t.name, km: st.info.km, min: st.info.min, price: price(t) };
+  st.phase = 'searching'; render(); reopen();
+}
+
+function reopen() { setOpen([st.ord, ...getOpen()]); send({ t: 'order', o: st.ord }); }
+
+function simulate() {
+  if (st.phase !== 'searching') return;
+  closeOrder(st.oid); send({ t: 'cancel', id: st.oid });
+  {
+    st.drv = DRIVERS[Math.floor(Math.random() * DRIVERS.length)];
+    const f = st.from.coords, start = [f[0] + 0.012, f[1] - 0.016];
+    ymaps.route([start, f]).then(r => {
+      const coords = pathCoords(r), mins = eta();
+      carMark = new ymaps.Placemark(coords[0], {}, { preset: 'islands#blueAutoIcon' });
+      map.geoObjects.add(carMark);
+      st.phase = 'arriving'; st.left = mins; render();
+      animate(coords, 9000, p => { st.left = Math.max(1, Math.ceil(mins * (1 - p))); setBar(p, st.left + ' мин до подачи'); }, () => {
+        st.phase = 'waiting'; render();
+        timers.push(setTimeout(startTrip, 1800));
+      });
+    }).catch(() => { toast('Не удалось найти водителя'); cancel(); });
+  }
+}
+
+function startTrip() {
+  st.phase = 'trip'; render();
+  const coords = pathCoords(routeObj), mins = Math.round(st.info.min);
+  animate(coords, Math.min(Math.max(mins * 700, 8000), 22000), p => {
+    setBar(p, 'Осталось ' + Math.max(0, Math.ceil(mins * (1 - p))) + ' мин');
+  }, () => { st.phase = 'done'; saveRiderTrip(); render(); });
+}
+
+function setBar(p, text) {
+  const b = $('#bar i'), l = $('#barText');
+  if (b) b.style.width = Math.round(p * 100) + '%';
+  if (l) l.textContent = text;
+}
+
+function cancel() {
+  if (st.oid && ['searching', 'arriving', 'waiting', 'trip'].includes(st.phase)) { send({ t: 'cancel', id: st.oid }); closeOrder(st.oid); }
+  st.oid = null;
+  timers.forEach(clearTimeout); timers = []; animToken++;
+  if (carMark) { map.geoObjects.remove(carMark); carMark = null; }
+  st.phase = 'idle'; st.drv = null; render();
+}
+
+function reset() {
+  cancel();
+  ['from', 'to'].forEach(k => { if (marks[k]) { map.geoObjects.remove(marks[k]); delete marks[k]; } st[k] = null; });
+  if (routeObj) { map.geoObjects.remove(routeObj); routeObj = null; }
+  st.info = null; st.active = 'from'; render();
+}
+
+// ---------- Интерфейс ----------
+function render() {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.m === st.mode));
+  $('.fields').hidden = st.mode !== 'rider';
+  if (st.mode === 'driver') return void ($('#body').innerHTML = driverHTML());
+  if (st.mode === 'hist') return void ($('#body').innerHTML = histHTML());
+  const busy = st.phase !== 'idle';
+  ['from', 'to'].forEach(k => {
+    const inp = $('#' + k);
+    if (document.activeElement !== inp) inp.value = st[k] ? st[k].address : '';
+    inp.readOnly = busy;
+    $(`.f[data-k="${k}"]`).classList.toggle('on', st.active === k && !busy);
+  });
+  const b = $('#body'), t = curT(), drv = st.drv;
+  const drvCard = drv ? `<div class="drv"><div class="av">${drv.n[0]}</div><div><b>${drv.n}</b><br><small style="color:var(--muted)">${drv.car}</small></div><div class="plate">${drv.plate}</div></div>` : '';
+  const bar = (txt, ind) => `<div class="bar ${ind ? 'ind' : ''}" id="bar"><i></i></div><p id="barText">${txt}</p>`;
+
+  if (st.phase === 'searching') {
+    b.innerHTML = `<div class="status"><h2>Ищем водителя</h2><p>${t.name} · ${price(t)} ₽</p>${bar('Заказ виден водителям на линии. Ждём, пока кто-то его примет.', true)}<button class="go sec" id="demoDrv" style="margin-bottom:8px">Не ждать — демо-водитель</button><button class="go sec" id="cancel">Отменить</button></div>`;
+  } else if (st.phase === 'arriving') {
+    b.innerHTML = `<div class="status"><h2>Водитель едет к вам</h2>${drvCard}${bar(st.left + ' мин до подачи')}<button class="go sec" id="cancel">Отменить заказ</button></div>`;
+  } else if (st.phase === 'waiting') {
+    b.innerHTML = `<div class="status"><h2>Водитель на месте</h2>${drvCard}<p>Выходите, машина ждёт</p></div>`;
+  } else if (st.phase === 'trip') {
+    b.innerHTML = `<div class="status"><h2>Вы в пути</h2>${drvCard}${bar('Едем к точке назначения')}</div>`;
+  } else if (st.phase === 'done') {
+    b.innerHTML = `<div class="status"><h2 class="done">Приехали</h2><p>К оплате ${price(t)} ₽ · ${st.info.km.toFixed(1)} км</p>${drvCard}<button class="go" id="again">Новая поездка</button></div>`;
+  } else if (!st.info) {
+    const what = st.active === 'from' ? 'откуда поедете' : 'куда поедете';
+    b.innerHTML = `<p class="hint">Нажмите на карту, чтобы выбрать, ${what}, или введите адрес и нажмите Enter.</p>` +
+      `<button class="go" disabled style="margin-top:12px">Создать заказ</button>` +
+      (st.from || st.to ? `<div style="margin-top:8px"><button class="go sec" id="reset">Сбросить точки</button></div>` : '');
+  } else {
+    b.innerHTML = `<div class="tariffs">${TARIFFS.map(x => `
+      <button class="t ${x.id === st.tariff ? 'sel' : ''}" data-id="${x.id}"><span><b>${x.name}</b><small>${x.note}</small></span><span class="p">${price(x)} ₽</span></button>`).join('')}</div>
+      <button class="go" id="order">Создать заказ · ${price(t)} ₽</button>
+      <div class="meta"><span>${st.info.km.toFixed(1)} км · ${Math.round(st.info.min)} мин в пути</span><span>Подача ~${eta()} мин</span></div>
+      <div style="margin-top:10px"><button class="go sec" id="reset" style="padding:11px;font-size:14px">Сбросить точки</button></div>`;
+  }
+}
+
+// ---------- История поездок ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const getTrips = () => { try { return JSON.parse(localStorage.getItem('taxi.trips') || '[]'); } catch (e) { return []; } };
+// Открытые заказы живут в localStorage: водитель увидит заказ, даже если вышел на линию позже
+const getOpen = () => { try { return JSON.parse(localStorage.getItem('taxi.orders') || '[]').filter(o => Date.now() - o.ts < 600000); } catch (e) { return []; } };
+const setOpen = a => { try { localStorage.setItem('taxi.orders', JSON.stringify(a)); } catch (e) {} };
+const closeOrder = id => setOpen(getOpen().filter(o => o.id !== id));
+function addTrip(role, from, to, km, tariff, pr, who) {
+  try {
+    const a = getTrips();
+    a.unshift({ ts: Date.now(), role, from, to, km: +km.toFixed(1), tariff, price: pr, who });
+    localStorage.setItem('taxi.trips', JSON.stringify(a.slice(0, 100)));
+  } catch (e) {}
+}
+function saveRiderTrip() {
+  addTrip('rider', st.from.address, st.to.address, st.info.km, curT().name, price(curT()), st.drv && st.drv.n);
+}
+function histHTML() {
+  const a = getTrips(), sum = r => a.filter(x => x.role === r).reduce((s, x) => s + x.price, 0);
+  if (!a.length) return '<p class="hint">Пока нет поездок. Здесь появятся завершённые поездки пассажира и водителя.</p>';
+  return `<div class="sum"><div>Потрачено<b>${sum('rider')} ₽</b></div><div>Заработано<b>${sum('driver')} ₽</b></div></div>` +
+    a.map(x => `<div class="h"><div><b>${esc(x.from)}</b><small>→ ${esc(x.to)}</small><small>${new Date(x.ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc(x.tariff)} · ${x.km} км${x.who ? ' · ' + esc(x.who) : ''}</small></div><b class="${x.role === 'driver' ? 'in' : ''}">${x.role === 'driver' ? '+' : '−'}${x.price} ₽</b></div>`).join('') +
+    '<button class="go sec" id="clearHist" style="margin-top:12px;padding:11px;font-size:14px">Очистить историю</button>';
+}
+
+// ---------- Связь вкладок (вместо сервера) ----------
+const chan = 'BroadcastChannel' in window ? new BroadcastChannel('taxi') : null;
+const send = m => chan && chan.postMessage(m);
+if (chan) chan.onmessage = e => onMsg(e.data);
+addEventListener('pagehide', () => { if (st.oid && st.phase === 'searching') closeOrder(st.oid); });
+
+function onMsg(m) {
+  if (m.t === 'taken') {
+    if (m.did === TAB && dr.cur && dr.cur.id === m.id) { driverAbort(); toast('Заказ уже занят другим водителем'); }
+    return;
+  }
+  if (m.t === 'order') { if (dr.online && !dr.cur) { dr.orders.unshift(m.o); st.mode === 'driver' && render(); } return; }
+  if (m.t === 'accept') dr.orders = dr.orders.filter(o => o.id !== m.id);
+  if (m.t === 'cancel') {
+    dr.orders = dr.orders.filter(o => o.id !== m.id);
+    if (dr.cur && dr.cur.id === m.id) { driverAbort(); toast('Пассажир отменил заказ'); }
+    st.mode === 'driver' && render(); return;
+  }
+  if (!st.oid || m.id !== st.oid || !map) return; // дальше — сообщения водителя для пассажира
+  if (m.t === 'accept' && st.phase !== 'searching') return send({ t: 'taken', id: m.id, did: m.did });
+  if (m.t === 'accept' && st.phase === 'searching') {
+    timers.forEach(clearTimeout); timers = [];
+    st.drv = m.drv; st.left = m.left; st.phase = 'arriving';
+    carMark = new ymaps.Placemark(m.c, {}, { preset: 'islands#blueAutoIcon' }); map.geoObjects.add(carMark);
+    render();
+  } else if (m.t === 'pos' && carMark) { carMark.geometry.setCoordinates(m.c); setBar(m.p, m.text); }
+  else if (m.t === 'status' && ['arriving', 'waiting', 'trip'].includes(st.phase)) {
+    st.phase = m.s; if (m.s === 'done') saveRiderTrip(); render();
+  } else if (m.t === 'drop' && ['arriving', 'waiting'].includes(st.phase)) {
+    if (carMark) { map.geoObjects.remove(carMark); carMark = null; }
+    st.phase = 'searching'; render(); reopen(); toast('Водитель отказался, ищем другого');
+  }
+}
+
+// ---------- Режим водителя ----------
+const dr = { online: false, orders: [], cur: null, phase: null, pos: null };
+const ME = { n: 'Дмитрий', car: 'Kia Rio, белый', plate: 'А777АА 77' };
+let drRoute, lastPing = 0;
+const TAB = Math.random().toString(36).slice(2);
+
+function leg(a, b, ms, onStart, onP) {
+  return ymaps.route([a, b]).then(r => {
+    if (drRoute) map.geoObjects.remove(drRoute);
+    drRoute = r;
+    r.getPaths().options.set({ strokeColor: '#161A23', strokeWidth: 5, opacity: 0.9 });
+    r.getWayPoints().options.set('visible', false);
+    map.geoObjects.add(r);
+    map.setBounds(r.getBounds(), { checkZoomRange: true, zoomMargin: [70, 50, 70, 50] });
+    if (!carMark) { carMark = new ymaps.Placemark(a, {}, { preset: 'islands#blueAutoIcon' }); map.geoObjects.add(carMark); }
+    carMark.geometry.setCoordinates(a);
+    onStart && onStart(r);
+    return new Promise(res => animate(pathCoords(r), ms, onP, res));
+  });
+}
+function ping(id, p, text) {
+  setBar(p, text);
+  const n = performance.now();
+  if (n - lastPing > 250 || p === 1) { lastPing = n; send({ t: 'pos', id, c: carMark.geometry.getCoordinates(), p, text }); }
+}
+
+function accept(id) {
+  const o = dr.orders.find(x => x.id === id);
+  if (!o) return toast('Заказ уже взят');
+  if (st.phase !== 'idle') return toast('Сначала завершите свою поездку как пассажир');
+  closeOrder(id);
+  dr.cur = o; dr.orders = []; dr.phase = 'toPickup'; render();
+  let left = 1;
+  leg(dr.pos, o.from.coords, 9000, r => {
+    left = Math.max(1, Math.round(r.getTime() / 60));
+    send({ t: 'accept', id, drv: ME, c: dr.pos, left, did: TAB });
+  }, p => { const t = Math.max(1, Math.ceil(left * (1 - p))) + ' мин до подачи'; ping(id, p, t); })
+    .then(() => { dr.pos = o.from.coords; dr.phase = 'atPickup'; send({ t: 'status', id, s: 'waiting' }); render(); })
+    .catch(() => { toast('Не удалось проложить маршрут'); driverAbort(); });
+}
+
+function pickup() {
+  const o = dr.cur, mins = Math.max(1, Math.round(o.min));
+  dr.phase = 'trip'; send({ t: 'status', id: o.id, s: 'trip' }); render();
+  leg(o.from.coords, o.to.coords, Math.min(Math.max(mins * 700, 8000), 22000), null,
+    p => ping(o.id, p, 'Осталось ' + Math.max(0, Math.ceil(mins * (1 - p))) + ' мин'))
+    .then(() => { dr.pos = o.to.coords; dr.phase = 'atDest'; render(); });
+}
+
+function finish() {
+  const o = dr.cur, net = Math.round(o.price * 0.8);
+  send({ t: 'status', id: o.id, s: 'done' });
+  addTrip('driver', o.from.address, o.to.address, o.km, o.tariff, net, 'пассажир');
+  driverAbort(); toast('Поездка завершена: +' + net + ' ₽');
+}
+
+function driverAbort() {
+  animToken++; dr.cur = null; dr.phase = null;
+  if (carMark) { map.geoObjects.remove(carMark); carMark = null; }
+  if (drRoute) { map.geoObjects.remove(drRoute); drRoute = null; }
+  render();
+}
+
+function driverHTML() {
+  const day = new Date().toDateString(), today = getTrips().filter(x => x.role === 'driver' && new Date(x.ts).toDateString() === day);
+  const stats = `<div class="meta"><span>Сегодня: ${today.length} поездок</span><b style="color:var(--ink)">${today.reduce((s, x) => s + x.price, 0)} ₽</b></div>`;
+  const o = dr.cur, bar = txt => `<div class="bar" id="bar"><i></i></div><p id="barText">${txt}</p>`;
+  const card = o ? `<div class="drv"><div class="av">${esc(o.tariff[0])}</div><div><b>${esc(o.from.address)}</b><br><small style="color:var(--muted)">→ ${esc(o.to.address)}</small></div></div>` : '';
+  if (!dr.online) return `<div class="status"><h2>Вы не на линии</h2><p>Выйдите на линию, чтобы получать заказы</p></div><button class="go" id="online" style="margin-top:14px">Выйти на линию</button>${stats}`;
+  if (dr.phase === 'toPickup') return `<div class="status"><h2>Едете к пассажиру</h2>${card}${bar('Строим маршрут…')}<button class="go sec" id="drop">Отказаться</button></div>`;
+  if (dr.phase === 'atPickup') return `<div class="status"><h2>Вы на месте</h2>${card}<p style="margin-bottom:12px">Дождитесь пассажира</p><button class="go" id="start">Начать поездку</button></div>`;
+  if (dr.phase === 'trip') return `<div class="status"><h2>Везёте пассажира</h2>${card}${bar('Едем к точке назначения')}</div>`;
+  if (dr.phase === 'atDest') return `<div class="status"><h2 class="done">Приехали</h2>${card}<button class="go" id="finish">Завершить · +${Math.round(o.price * 0.8)} ₽</button></div>`;
+  const list = dr.orders.map(x => `<div class="ord"><b>${esc(x.from.address)}</b><small>→ ${esc(x.to.address)}</small><div class="meta"><span>${esc(x.tariff)} · ${x.km.toFixed(1)} км</span><b>${Math.round(x.price * 0.8)} ₽</b></div><button class="go" data-acc="${esc(x.id)}" style="padding:12px;font-size:15px;margin-top:10px">Принять</button></div>`).join('');
+  return `<div class="status"><h2>На линии</h2><p>${dr.orders.length ? 'Новые заказы:' : 'Ждём заказы. Их создают пассажиры: откройте приложение во второй вкладке на экране «Поездка».'}</p></div>${list}<button class="go sec" id="online" style="margin-top:12px;padding:11px;font-size:14px">Сойти с линии</button>${stats}`;
+}
+
+// ---------- События ----------
+document.addEventListener('click', e => {
+  const el = e.target.closest('button'); if (!el) return;
+  if (el.dataset.m) { st.mode = el.dataset.m; render(); }
+  else if (el.id === 'online') {
+    if (!map) return;
+    dr.online = !dr.online;
+    if (dr.online) { dr.pos = map.getCenter(); dr.orders = getOpen().filter(o => o.id !== st.oid); } else dr.orders = [];
+    render();
+  }
+  else if (el.id === 'demoDrv') simulate();
+  else if (el.dataset.acc) accept(el.dataset.acc);
+  else if (el.id === 'start') pickup();
+  else if (el.id === 'finish') finish();
+  else if (el.id === 'drop') { send({ t: 'drop', id: dr.cur.id }); driverAbort(); }
+  else if (el.id === 'clearHist') { try { localStorage.removeItem('taxi.trips'); } catch (e) {} render(); }
+  else if (el.classList.contains('t')) { st.tariff = el.dataset.id; render(); }
+  else if (el.id === 'order') order();
+  else if (el.id === 'cancel') cancel();
+  else if (el.id === 'again' || el.id === 'reset') reset();
+  else if (el.id === 'locate') {
+    if (st.phase !== 'idle' || !map) return;
+    locateMe();
+  }
+});
+['from', 'to'].forEach(k => {
+  const inp = $('#' + k);
+  inp.addEventListener('focus', () => { st.active = k; render(); inp.select(); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { inp.blur(); geocodeText(k, inp.value); } });
+});
+render();
+</script>
+</body>
+</html>
